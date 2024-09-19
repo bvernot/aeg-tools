@@ -8,4 +8,4 @@ Specifically, if the majority allele is a C or a G, then all T or A bases observ
 
 Example command:
 
-`python mt-consensus/bin/mt-consensus.py -b data/Cap.K.4297.Hominidae.Homo_sapiens_deduped.bam -c NC_012920.1`
+`python bin/mt-consensus.py -b ../data/Cap.K.4297.Hominidae.Homo_sapiens_deduped.bam -c NC_012920.1`
