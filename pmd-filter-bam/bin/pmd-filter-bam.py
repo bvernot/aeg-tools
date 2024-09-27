@@ -31,11 +31,12 @@ def is_transition(base1, base2):
     transitions = [('A', 'G'), ('G', 'A'), ('C', 'T'), ('T', 'C')]
     return (base1, base2) in transitions
 
-def modify_read(read, snps, chrom, X):
+def modify_read(read, snps, chrom, X, verbose):
     """Modify the read by replacing bases overlapping with transition SNPs based on the specified conditions."""
     if chrom not in snps:
-        return read  # No SNPs for this chromosome
-    
+        return read, False  # No SNPs for this chromosome
+
+    is_modified = False
     query_sequence = list(read.query_sequence)  # Convert to list to modify the sequence
     read_length = len(query_sequence)  # Total length of the read
     
@@ -54,51 +55,69 @@ def modify_read(read, snps, chrom, X):
 
                 # Forward strand: If the read has 'T' and it's a transition SNP
                 if not read.is_reverse and read_base == 'T':
-                    query_sequence[query_pos] = 'N'
-                
+                    query_sequence[query_pos] = 'B'
+                    is_modified = True
+                    
                 # Reverse strand: If the read has 'A' and it's a transition SNP
                 elif read.is_reverse and read_base == 'A':
-                    query_sequence[query_pos] = 'N'
+                    query_sequence[query_pos] = 'B'
+                    is_modified = True
                     pass
 
                 pass
 
-            print( not read.is_reverse, allele1, allele2, og_sequence, query_sequence[query_pos], query_pos, read_length - query_pos, sep='\t' )
-            print( '     ', ' ', ' ', ''.join(query_sequence), sep='\t' )
+            if verbose: print( not read.is_reverse, allele1, allele2, og_sequence,
+                               query_sequence[query_pos], query_pos, read_length - query_pos, sep='\t' )
+            if verbose: print( '     ', ' ', ' ', ''.join(query_sequence), sep='\t' )
                 
             pass
         pass
     
     # Convert list back to string and update the read's sequence
     read.query_sequence = ''.join(query_sequence)
-    return read
+    return read, is_modified
 
-def process_bam(bam_file, snps, output_bam, X):
+def process_bam(bam_file, snps, output_bam, X, write_mode, verbose):
     """Read BAM file, modify reads, and write to a new BAM file."""
     bam_in = pysam.AlignmentFile(bam_file, "rb")
     bam_out = pysam.AlignmentFile(output_bam, "wb", header=bam_in.header)
     
+    reads_removed = 0
+    n_reads = 0
     for read in bam_in.fetch():
         chrom = bam_in.get_reference_name(read.reference_id)
-        modified_read = modify_read(read, snps, chrom, X)
-        bam_out.write(modified_read)
+        modified_read, is_modified = modify_read(read, snps, chrom, X, verbose)
+        n_reads += 1
+        if is_modified: reads_removed += 1
+        if write_mode == 'filter' and is_modified:
+            if verbose: print('removing read!')
+        else:
+            bam_out.write(modified_read)
+            pass
+        pass
+
+    print('%s %d reads out of %d' % ('Removed' if write_mode == 'filter' else 'Masked',
+                                     reads_removed, n_reads))
     
     bam_in.close()
     bam_out.close()
 
 def main():
     parser = argparse.ArgumentParser(description="Modify BAM reads by changing SNP-overlapping bases to 'N'.")
-    parser.add_argument("bam_file", help="Input BAM file")
-    parser.add_argument("snp_file", help="Input SNP file (TSV format: chrom, position, ref, allele1, allele2)")
-    parser.add_argument("output_bam", help="Output BAM file with modified reads")
-    parser.add_argument("--X", type=int, default=None, help="Number of bases from the start/end of the read to check for SNP overlap")
+    parser.add_argument("--bam", '-b', help="Input BAM file")
+    parser.add_argument("--snps", '-s', help="Input SNP file (TSV format: chrom, position, ref, allele1, allele2)")
+    parser.add_argument("--output-bam", '-o', help="Output BAM file with modified reads")
+    parser.add_argument("--X", '-X', type=int, default=None, help="Number of bases from the start/end of the read to check for SNP overlap. By default the entire read is processed.")
+    parser.add_argument("--verbose", "-v", help="Verbose output (mostly for debugging)", action='store_true')
+    parser.add_argument("--mode", '-m', choices=['mask', 'filter'], default='filter',
+                        help="Mask bases vs simply removing (filter) the read from the output bam. Default is to filter the read.")
     args = parser.parse_args()
     
     # Load SNPs from file
-    snps = load_snps(args.snp_file)
+    snps = load_snps(args.snps)
     
     # Process BAM file and write modified reads to the output BAM
-    process_bam(args.bam_file, snps, args.output_bam, args.X)
+    process_bam(args.bam, snps, args.output_bam, args.X, args.mode, args.verbose)
 
 if __name__ == "__main__":
     main()
