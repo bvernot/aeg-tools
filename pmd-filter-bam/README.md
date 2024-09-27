@@ -37,7 +37,8 @@ python bin/pmd-filter-bam.py \
     --X 3 \
     -b ../data/Lib.F.9795.uniq.L35MQ25.bam \
     -s ../data/twist.1240k.burden.anno.txt \
-    -o hey.bam | less
+    -o hey.bam \
+    --mode filter
 ```
 
-
+You can use `[ -h ]` to get a full description of options.
