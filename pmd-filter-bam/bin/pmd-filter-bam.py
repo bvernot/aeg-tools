@@ -55,12 +55,12 @@ def modify_read(read, snps, chrom, X, verbose):
 
                 # Forward strand: If the read has 'T' and it's a transition SNP
                 if not read.is_reverse and read_base == 'T':
-                    query_sequence[query_pos] = 'B'
+                    query_sequence[query_pos] = 'N'
                     is_modified = True
                     
                 # Reverse strand: If the read has 'A' and it's a transition SNP
                 elif read.is_reverse and read_base == 'A':
-                    query_sequence[query_pos] = 'B'
+                    query_sequence[query_pos] = 'N'
                     is_modified = True
                     pass
 
