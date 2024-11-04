@@ -12,6 +12,7 @@ def get_base_counts(bam_file, reference_name, trim_ends, min_bqual):
     
     # Dictionary to store base calls at each position
     position_bases = {}
+    position_ref_bases = {}
     
     # Iterate over each read in the BAM file
     for read in reads:
@@ -20,8 +21,17 @@ def get_base_counts(bam_file, reference_name, trim_ends, min_bqual):
         query_qualities = read.query_qualities
         aligned_pairs = read.get_aligned_pairs(matches_only=False)
 
-        #print(read.query_name, aligned_pairs)
-        #print(read.query_name, read.get_aligned_pairs(matches_only=False))
+        if read.has_tag('MD'):
+            ref_sequence = ''.join(x[2] if not x[2] is None else 'N' for x in read.get_aligned_pairs(matches_only=False, with_seq=True))
+        else:
+            ref_sequence = ''
+            pass
+        
+        # print()
+        # print(read.query_name, aligned_pairs)
+        # print(read.query_name, read.get_aligned_pairs(matches_only=False, with_seq=True))
+        # print(query_sequence)
+        # print(ref_sequence)
 
         #print(read.query_name, aligned_pairs)
 
@@ -52,11 +62,12 @@ def get_base_counts(bam_file, reference_name, trim_ends, min_bqual):
                 pass
             
             position_bases[ref_pos].append(base)
+            position_ref_bases[ref_pos] = ref_sequence[query_pos] if ref_sequence != '' else ''
             pass
         pass
-    return position_bases
+    return position_bases, position_ref_bases
 
-def report_consensus(position_bases, args):
+def report_consensus(position_bases, position_ref_bases, args):
 
     # Build consensus sequence from the most common base at each position
     # consensus_sequence = []
@@ -66,6 +77,8 @@ def report_consensus(position_bases, args):
         most_common_base, most_common_base_n = base_counter.most_common(1)[0]
         depth = sum(n for _,n in base_counter.items())
         freq = most_common_base_n / depth
+
+        ref_base = position_ref_bases[ref_pos] if position_ref_bases[ref_pos] != '' else 'no_MD_field'
 
         if most_common_base == 'C' and 'T' in base_counter2:
             del base_counter2['T']
@@ -104,7 +117,7 @@ def report_consensus(position_bases, args):
 
         ## print results
             
-        print('CONS', ref_pos+1,
+        print('CONS', ref_pos+1, ref_base,
               depth, most_common_base, most_common_base_n, freq,
               base_counter['A'], base_counter['C'], base_counter['G'], base_counter['T'],
               flags,
@@ -134,14 +147,14 @@ def main():
     args = parser.parse_args()
     
     # Call the function to get the consensus sequence
-    position_bases = get_base_counts(args.bam, args.chr, args.trim_ends, args.min_bqual)
+    position_bases, position_ref_bases = get_base_counts(args.bam, args.chr, args.trim_ends, args.min_bqual)
 
-    print('CONS', 'ref_pos', 'depth', 'maj_base', 'n_maj_base', 'freq_maj_base',
+    print('CONS', 'ref_pos', 'ref_base', 'depth', 'maj_base', 'n_maj_base', 'freq_maj_base',
           'n_A', 'n_C', 'n_G', 'n_T', 'flags',
           'depth_rmdmg', 'freq_maj_base_rmdmg',
           'n_A_rmdmg', 'n_C_rmdmg', 'n_G_rmdmg', 'n_T_rmdmg',
           'flags_rmdmg', 'allbases', sep='\t')
-    report_consensus(position_bases, args)
+    report_consensus(position_bases, position_ref_bases, args)
     
     # Output the consensus sequence
     # print("Consensus sequence:", consensus)
